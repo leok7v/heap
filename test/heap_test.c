@@ -26,15 +26,21 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <time.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#define printf(...) __android_log_print(ANDROID_LOG_INFO, "heap", __VA_ARGS__)
+#endif
+
 
 enum { NANOSECONDS_IN_SECOND = 1000000000, null = 0 };
 #define countof(a) (sizeof(a) / sizeof((a)[0]))
 
 /*
  MBP 2013 Intel Core i7 2.5GHz 1333MHz DDR3 clang-503.0.40 -Ofast
- 
+
  32bit:
- 
+
  535 nanoseconds for large alloc()/free() pair - heap
   24 nanoseconds for small alloc()/free() pair - heap *)
  118 nanoseconds for small alloc()/free() pair - runtime
@@ -44,10 +50,16 @@ enum { NANOSECONDS_IN_SECOND = 1000000000, null = 0 };
  530 nanoseconds for large alloc()/free() pair - heap
   23 nanoseconds for small alloc()/free() pair - heap
  135 nanoseconds for small alloc()/free() pair - runtime
- 
+
+ Android 4.2.2 OMAP5432 ARM Cortex A15 1.5GHz DDR3L
+1628 nanoseconds for large alloc()/free() pair - heap
+  76 nanoseconds for small alloc()/free() pair - heap
+ 547 nanoseconds for small alloc()/free() pair - runtime
+
  *) Light travels approximately 29.98 centimeters 11.8 inches in 1 nanosecond.
-    In 24 nanoseconds light reflects from the mirror 3.6 meters (11.8 feet) away
-    accross the room and back and we already executed heap_alloc() and heap_free().
+    In 24 nanoseconds light just enough time to travel to a mirror 3.6 meters
+    (11.8 feet) away across the room and back while heap_alloc()  and heap_free()
+    has been executed.
 */
 
 #ifdef __MACH__
@@ -88,20 +100,24 @@ static inline double random_in_range(size_t n) { // random in range [0..n-1]
 }
 
 static void* empty_alloc(size_t bytes) {
-    static intptr_t seqential = 1;
-    return (void*)(seqential++);
+    static intptr_t sequential = 1;
+    return (void*)(sequential++);
 }
 
 static void empty_free(void* ap) {
-    static intptr_t seqential = 0;
-    seqential -= (intptr_t)ap;
+    static intptr_t sequential = 0;
+    sequential -= (intptr_t)ap;
 }
 
 static uint64_t _test(void* (alloc)(size_t), void (free)(void*), bool large) {
     uint64_t start = nanoseconds();
     enum { A = 1024, M = 1024 };
     void* array[A] = {0};
+    #ifdef __ANDROID__
+    const int N = 1000000 * (large ? 1 : 10);
+    #else
     const int N = 10000000 * (large ? 1 : 10);
+    #endif
     int allocs = 0;
     int frees = 0;
     for (int i = 0; i < N; i++) {
@@ -146,20 +162,20 @@ static void test(bool verbose, bool large,
 
 static heap_t test_heap;
 
-static void* halloc(size_t bytes) {
+static void* test_alloc(size_t bytes) {
     return heap_alloc(test_heap, bytes);
 }
 
-static void  hfree(void* a) {
+static void test_free(void* a) {
     heap_free(test_heap, a);
 }
 
 void heap_test(int verbose) {
     test_heap = heap_create();
-    test(verbose, true, halloc, hfree, "heap");
+    test(verbose, true, test_alloc, test_free, "heap");
     heap_destroy(test_heap);
     test_heap = heap_create();
-    test(verbose, false, halloc, hfree, "heap");
+    test(verbose, false, test_alloc, test_free, "heap");
     heap_destroy(test_heap);
     test(verbose, false, malloc, free, "runtime");
 }
