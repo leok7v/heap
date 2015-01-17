@@ -34,13 +34,12 @@ typedef unsigned char byte;
 
 enum { KB = 1024, PAGE = 4 * KB, null = 0 };
 
-#pragma push
-#pragma packed
+#pragma pack(push, 1)
 typedef struct node_s {
     struct node_s* next;
     size_t size;
 } node_t;
-#pragma pop
+#pragma pack(pop)
 
 typedef struct arena_s {
     node_t  base;

@@ -56,6 +56,11 @@ enum { NANOSECONDS_IN_SECOND = 1000000000, null = 0 };
   76 nanoseconds for small alloc()/free() pair - heap
  547 nanoseconds for small alloc()/free() pair - runtime
 
+ Android NVIDIA Tegra 4 1.8GHz
+1685 nanoseconds for large alloc()/free() pair - heap
+  72 nanoseconds for small alloc()/free() pair - heap
+ 540 nanoseconds for small alloc()/free() pair - runtime
+
  *) Light travels approximately 29.98 centimeters 11.8 inches in 1 nanosecond.
     In 24 nanoseconds light just enough time to travel to a mirror 3.6 meters
     (11.8 feet) away across the room and back while heap_alloc()  and heap_free()
