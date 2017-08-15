@@ -49,8 +49,8 @@ typedef struct arena_s {
     void* (*that_alloc)(void* that, size_t);
     void  (*that_free)(void* that, void*);
     size_t  parent_min_alloc_in_bytes;
-    size_t  recycle_smaller_than_bytes;
-    node_t**bins; /* [recycle_smaller_than_bytes] */;
+    size_t  recycle_smaller_then_bytes;
+    node_t**bins; /* [recycle_smaller_then_bytes] */;
 } arena_t;
 
 static void* arena_alloc(arena_t* arena, size_t bytes);
@@ -63,7 +63,7 @@ static void  arena_free(arena_t* arena, void* address);
 heap_t* heap_create_ex(void* that, void* (alloc)(void* that, size_t),
                         void (free)(void* that, void*),
                         size_t parent_min_alloc_in_bytes,
-                        size_t recycle_smaller_than_bytes) {
+                        size_t recycle_smaller_then_bytes) {
     assert(parent_min_alloc_in_bytes >= 4 * 1024);
     arena_t* arena = (arena_t*)alloc(that, sizeof(arena_t));
     memset(arena, 0, sizeof(arena_t));
@@ -74,12 +74,12 @@ heap_t* heap_create_ex(void* that, void* (alloc)(void* that, size_t),
         arena->that_alloc = alloc;
         arena->that_free  = free;
         arena->parent_min_alloc_in_bytes = parent_min_alloc_in_bytes;
-        arena->recycle_smaller_than_bytes = recycle_smaller_than_bytes;
+        arena->recycle_smaller_then_bytes = recycle_smaller_then_bytes;
         arena->bins = null;
-        if (recycle_smaller_than_bytes > 1) {
-            arena->bins = (node_t**)alloc(that, recycle_smaller_than_bytes * sizeof(node_t*));
+        if (recycle_smaller_then_bytes > 1) {
+            arena->bins = (node_t**)alloc(that, recycle_smaller_then_bytes * sizeof(node_t*));
             if (arena->bins != null) {
-                memset(arena->bins, 0, recycle_smaller_than_bytes * sizeof(node_t*));
+                memset(arena->bins, 0, recycle_smaller_then_bytes * sizeof(node_t*));
             } else {
                 heap_destroy((heap_t*)arena);
                 arena = null;
@@ -119,7 +119,7 @@ bool heap_destroy(heap_t* heap) {
     while (arena->allocated != null) {
         node_t* next = arena->allocated->next;
 //      printf("that_free(%lld, %p)\n", (uint64_t)(arena->allocated->size * sizeof(node_t)), arena->allocated);
-        free(arena->allocated);
+        arena->that_free(arena->that, arena->allocated);
         arena->allocated = next;
     }
     arena->that_free(arena->that, arena->bins);
@@ -223,7 +223,7 @@ size_t heap_alloc_usable_size(void* a) {
 
 void heap_compact(heap_t* heap) {
     arena_t* arena = (arena_t*)heap;
-    for (int i = 0; i < arena->recycle_smaller_than_bytes; i++) {
+    for (int i = 0; i < arena->recycle_smaller_then_bytes; i++) {
         for (;;) {
             node_t* n = arena->bins[i];
             if (n == null) {
@@ -239,7 +239,7 @@ void heap_compact(heap_t* heap) {
 void* heap_alloc(heap_t* heap, size_t size) {
     arena_t* arena = (arena_t*)heap;
     size_t bytes = number_of_units(size) * sizeof(node_t);
-    if (bytes >= arena->recycle_smaller_than_bytes || arena->bins[bytes] == null) {
+    if (bytes >= arena->recycle_smaller_then_bytes || arena->bins[bytes] == null) {
         void* a = arena_alloc(arena, size);
         if (a == null) {
             heap_compact(heap);
@@ -260,7 +260,7 @@ void heap_free(heap_t* heap, void* a) {
     if (a != null) {
         arena_t* arena = (arena_t*)heap;
         size_t bytes = _heap_alloc_usable_size(a);
-        if (bytes >= arena->recycle_smaller_than_bytes) {
+        if (bytes >= arena->recycle_smaller_then_bytes) {
             arena_free(arena, a);
         } else {
             node_t* n = (node_t*)a - 1;
