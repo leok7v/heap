@@ -73,6 +73,8 @@ enum { NANOSECONDS_IN_SECOND = 1000000000, null = 0 };
 #include <mach/mach_time.h>
 #include <sys/time.h>
 
+/*
+
 #define CLOCK_MONOTONIC 1
 
 static inline uint64_t nanotime() {
@@ -89,6 +91,8 @@ static inline int clock_gettime(int clk_id, struct timespec* t) {
     t->tv_nsec = (int)(ns % NANOSECONDS_IN_SECOND);
     return 0;
 }
+
+*/
 
 #endif
 
@@ -149,16 +153,26 @@ static uint64_t _test(void* (alloc)(size_t), void (free)(void*), bool large) {
     return (finish - start) / allocs;
 }
 
+static int malloc_count;
+
+static void* counted_alloc(void* that, size_t bytes) { malloc_count++; return malloc(bytes); }
+static void  counted_free(void* that, void* a) { malloc_count--; free(a); }
+
 static void test(bool verbose, bool large,
                  void* (alloc)(size_t),
                  void (free)(void*),
                  const char* title) {
-    heap_t* heap = heap_create();
+    malloc_count = 0;
+    heap_t heap = heap_create_ex(null, counted_alloc, counted_free, 1024 * 1024, 1024);
     uint64_t time0 = _test(empty_alloc, empty_free, large);
     heap_destroy(heap);
-    heap = heap_create();
+    assert(malloc_count == 0);
+
+    malloc_count = 0;
+    heap = heap_create_ex(null, counted_alloc, counted_free, 1024 * 1024, 1024);
     uint64_t time1 = _test(alloc, free, large);
     heap_destroy(heap);
+    assert(malloc_count == 0);
     if (verbose) {
         printf("% 4lld nanoseconds for %s alloc()/free() pair - %s\n",
                (time1 - time0), large ? "large" : "small", title);
